@@ -5,14 +5,12 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
 
-import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,12 +34,11 @@ public class TourPlanService {
                 "Create a detailed %d-day tour itinerary for %s focusing on interests: %s. " +
                         "Return the itinerary strictly in JSON format like below:\n" +
                         "{\n" +
-                        "  \"Day 1\": {\"morning\": \"\", \"afternoon\": \"\", \"evening\": \"\"},\n" +
-                        "  \"Day 2\": {\"morning\": \"\", \"afternoon\": \"\", \"evening\": \"\"},\n" +
+                        "  \"Day 1\": {\"morning\": {}, \"afternoon\": {}, \"evening\": {}, \"foodTip\": \"\", \"transportTip\": \"\"},\n" +
+                        "  \"Day 2\": {\"morning\": {}, \"afternoon\": {}, \"evening\": {}, \"foodTip\": \"\", \"transportTip\": \"\"},\n" +
                         "  ...\n" +
                         "}\n" +
-                        "Include tips for food, transport, and sightseeing within each period. " +
-                        "Each period can be a string or a nested object with more information.",
+                        "Each period should include an activity and description. Also add foodTip and transportTip per day.",
                 days, city, interestsStr
         );
 
@@ -65,14 +62,11 @@ public class TourPlanService {
             String itineraryJson = content.substring(start, end + 1);
 
             // Parse JSON into Map<String, Map<String, Object>>
-            JsonNode jsonNode = mapper.readTree(itineraryJson);
-            itineraryMap = mapper.convertValue(
-                    jsonNode, new TypeReference<Map<String, Map<String, Object>>>() {}
-            );
+            itineraryMap = mapper.readValue(itineraryJson,
+                    new TypeReference<Map<String, Map<String, Object>>>() {});
 
         } catch (Exception e) {
             e.printStackTrace();
-            // Fallback empty itinerary in case of error
             itineraryMap = generateEmptyItinerary(days);
         }
 
@@ -90,7 +84,7 @@ public class TourPlanService {
                         .header("Authorization", "Bearer " + apiKey)
                         .header("Content-Type", "application/json")
                         .bodyValue(requestBody)
-                        .exchangeToMono(response -> handleResponse(response))
+                        .exchangeToMono(this::handleResponse)
                         .block();
             } catch (WebClientResponseException.TooManyRequests ex) {
                 attempt++;
@@ -120,6 +114,8 @@ public class TourPlanService {
             dayPlan.put("morning", "No plan available due to error or API limit.");
             dayPlan.put("afternoon", "No plan available due to error or API limit.");
             dayPlan.put("evening", "No plan available due to error or API limit.");
+            dayPlan.put("foodTip", "No food tip available.");
+            dayPlan.put("transportTip", "No transport tip available.");
             empty.put("Day " + i, dayPlan);
         }
         return empty;
