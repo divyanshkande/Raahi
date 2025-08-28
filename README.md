@@ -1,70 +1,159 @@
-# Getting Started with Create React App
+<h1 align="center">🌍 Raahi-Your AI Tour Planner</h1>
+<p align="center"><b>Plan • Travel • Explore</b> – AI-powered smart travel planner (React + Spring Boot)</p>
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
-## Available Scripts
+---
 
-In the project directory, you can run:
+## 📌 Table of Contents
+- [About](#-about)
+- [Features](#-features)
+- [Tech Stack](#-tech-stack)
+- [Repository Structure](#-repository-structure)
+- [Screenshots](#-screenshots)
+- [Installation](#-installation)
+- [Usage (Quick Start)](#-usage-quick-start)
+- [Environment Variables](#-environment-variables)
+- [Future Scope](#-future-scope)
+- [Contributing](#-contributing)
+- [License](#-license)
 
-### `npm start`
+---
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## 📖 About
+**AI Tour Planner** is a full-stack travel planning application that helps users generate personalized itineraries.  
+It uses **AI + Spring Boot backend** to analyze destinations, duration, and interests, then produces smart day-wise plans.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+---
 
-### `npm test`
+## ✨ Features
+- 🔐 User authentication & secure login  
+- 🧠 AI-powered itinerary generation  
+- 📍 Destination, number of days & interest selection  
+- 📅 Day-wise trip planning  
+- 🎨 Beautiful, responsive UI with animations  
+- 📡 React frontend connected with Spring Boot backend  
+- ⚡ Real-time data handling with REST APIs  
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+---
 
-### `npm run build`
+## 🛠 Tech Stack
+**Frontend:** React, Tailwind CSS, Axios  
+**Backend:** Spring Boot, Java, Spring Security  
+**Database:** MySQL  
+**Authentication:** JWT & BCrypt Password Encoder  
+**Tools:** Postman, Maven, npm, VS Code
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+---
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## 📁 Repository Structure
+raahi/
+│
+├── backend/ # Spring Boot backend source code
+│ ├── src/
+│ ├── pom.xml
+│
+├── frontend/ # React frontend source code
+│ ├── src/
+│ ├── package.json
+│
+└── README.md
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+---
 
-### `npm run eject`
+## 📸 Screenshots
+![Homepage](path-to-screenshot1.png)  
+*Homepage with sections for Home, About & Login*
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+![Itinerary](path-to-screenshot2.png)  
+*AI-generated itinerary with day-wise plan*
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+---
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+## 🛠 Installation
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+### 📌 Prerequisites
+- **Node.js** (v16+)  
+- **Java** (JDK 17+)  
+- **Maven**  
+- **MySQL Server**  
 
-## Learn More
+---
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+### 📥 Clone the repository
+```bash
+git clone https://github.com/divyanshkande/Raahi.git
+cd raahi
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+### ⚡ One-Time Setup for Combined Start
 
-### Code Splitting
+### Create a root-level package.json
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+npm init -y
 
-### Analyzing the Bundle Size
+### Install concurrently
+npm install concurrently
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+## Edit root package.json and add:
+"scripts": {
+  "start": "concurrently \"mvn -f backend/pom.xml spring-boot:run\" \"npm start --prefix frontend\""
+}
 
-### Making a Progressive Web App
+## Install frontend dependencies
+npm install --prefix frontend
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+---
 
-### Advanced Configuration
+##  🚀 Usage (Quick Start)
+From the root folder:
+npm start
+This will:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+Start the backend at: http://localhost:8080
 
-### Deployment
+Start the frontend at: http://localhost:3000
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+---
 
-### `npm run build` fails to minify
+## 🔐 Environment Variables
+Backend (backend/.env)
+DB_USERNAME=your_mysql_username
+DB_PASSWORD=your_mysql_password
+OPENROUTER_API_KEY=your_openrouter_api_key
+DB_URL=your_database_url
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+---
+
+## Update your application.properties:
+spring.datasource.username=${DB_USERNAME}
+spring.datasource.password=${DB_PASSWORD}
+openrouter.api.key=${OPENROUTER_API_KEY}
+spring.datasource.url=${DB_URL}
+
+---
+
+## 🔮 Future Scope
+
+🗺️ Map integration
+
+🌓 Dark mode support
+
+🤖 AI-based trip cost prediction
+
+📲 PWA (offline support)
+
+---
+
+## 🤝 Contributing
+
+Fork the repository 🍴
+
+Create a feature branch 🌿
+
+Commit your changes ✅
+
+Open a Pull Request 🚀
+
+---
+
+## 📜 License
+This project is licensed under the MIT License.
