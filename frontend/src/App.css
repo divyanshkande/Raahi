@@ -36,3 +36,14 @@
     transform: rotate(360deg);
   }
 }
+
+/* html {
+  scroll-behavior: smooth !important;
+  scroll-padding-top: 80px !important;
+}
+
+@media (max-width: 768px) {
+  html {
+    scroll-padding-top: 75px !important;
+  }
+} */

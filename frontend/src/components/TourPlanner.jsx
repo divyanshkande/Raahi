@@ -1,103 +1,144 @@
-import React, { useState } from "react";
+// src/components/TourPlanner.jsx
+import React, { useState, lazy, Suspense } from "react";
 import { motion } from "framer-motion";
 import CityInput from "./CityInput";
 import DaysInput from "./DaysInput";
 import InterestsInput from "./InterestsInput";
 import ItineraryCard from "./ItineraryCard";
+
+// ← THIS WAS MISSING! ADD THIS LINE
 import { getItinerary } from "../services/api";
+
+// Lazy load the heavy MapView
+const MapView = lazy(() => import("./MapView"));
 
 export default function TourPlanner() {
   const [city, setCity] = useState("");
-  const [days, setDays] = useState(1);
+  const [days, setDays] = useState(3);
   const [interests, setInterests] = useState([]);
   const [itinerary, setItinerary] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [selectedPlace, setSelectedPlace] = useState(null);
 
   const handlePlanTrip = async () => {
-    if (!city || !days) {
-      setError("Please provide both city and days.");
+    if (!city.trim() || days < 1) {
+      setError("Please enter a city and valid number of days.");
       return;
     }
+
     setError("");
     setLoading(true);
+    setItinerary({});
+    setSelectedPlace(null);
 
     try {
-      const data = await getItinerary({ city, days, interests });
-      setItinerary(data.itinerary || {});
-    } catch (err) {
-      console.error(err);
-      setError("Failed to fetch itinerary. Please try again.");
-    }
+      const data = await getItinerary({ city: city.trim(), days, interests });
 
-    setLoading(false);
+      const rawItinerary =
+        data?.itinerary ||
+        data?.itineraryMap ||
+        data?.data?.itinerary ||
+        data?.data?.itineraryMap ||
+        data;
+
+      setItinerary(rawItinerary || {});
+    } catch (err) {
+      console.error("API failed:", err);
+      setError("Oops! Our AI is taking a coffee break ☕ Try again in a few seconds.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePlaceClick = (place) => {
+    if (place?.lat && place?.lng) {
+      setSelectedPlace({
+        lat: parseFloat(place.lat),
+        lng: parseFloat(place.lng),
+        name: place.name,
+      });
+    }
   };
 
   return (
-    <motion.div
-      className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-50 flex flex-col items-center py-12 px-4"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 1 }}
-    >
-      <motion.h1
-        className="text-4xl md:text-5xl font-extrabold text-indigo-700 mb-6 drop-shadow-lg"
-        initial={{ y: -50, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.8 }}
-      >
-        Plan Your Dream Trip ✈️
-      </motion.h1>
-
-      {/* Inputs Card */}
-      <motion.div
-        className="w-full max-w-3xl bg-white shadow-2xl rounded-3xl p-8 space-y-6"
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 0.8 }}
-      >
-        <CityInput value={city} onChange={setCity} />
-        <DaysInput value={days} onChange={setDays} />
-        <InterestsInput value={interests} onChange={setInterests} />
-
-        <motion.button
-          onClick={handlePlanTrip}
-          disabled={loading}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold shadow-lg hover:bg-indigo-700 transition disabled:opacity-50"
-        >
-          {loading ? "Planning..." : "Plan My Trip"}
-        </motion.button>
-
-        {error && <p className="text-red-500 text-center">{error}</p>}
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 py-12 px-4">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-10">
+        <h1 className="text-5xl md:text-6xl font-extrabold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+          Plan Your Dream Trip ✈️
+        </h1>
+        <p className="text-xl text-gray-600 mt-4">AI-powered itineraries in seconds</p>
       </motion.div>
 
-      {/* Itinerary Cards */}
-      <div className="w-full max-w-3xl mt-10 space-y-4">
-        {Object.keys(itinerary).length > 0 &&
-          Object.entries(itinerary).map(([day, details], idx) => (
-            <motion.div
-              key={idx}
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.2 }}
-            >
-              <ItineraryCard day={day} details={details} />
-            </motion.div>
-          ))}
-      </div>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="max-w-2xl mx-auto bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/50"
+      >
+        <div className="space-y-6">
+          <CityInput value={city} onChange={setCity} disabled={loading} />
+          <DaysInput value={days} onChange={setDays} disabled={loading} />
+          <InterestsInput value={interests} onChange={setInterests} disabled={loading} />
 
-      {/* Empty state */}
-      {Object.keys(itinerary).length === 0 && !loading && (
-        <motion.p
-          className="text-gray-500 mt-6 text-center"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-        >
-          Enter your trip details and click <b>Plan My Trip</b> to see the itinerary!
-        </motion.p>
-      )}
-    </motion.div>
+          <button
+            onClick={handlePlanTrip}
+            disabled={loading}
+            className={`w-full py-5 rounded-2xl font-bold text-xl transition-all transform ${
+              loading
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover020:to-purple-700 hover:scale-105 shadow-xl hover:shadow-purple-500/50"
+            } text-white`}
+          >
+            {loading ? (
+              <span className="flex items-center justify-center gap-3">
+                <span className="animate-spin text-2xl">⚡</span>
+                Creating Magic...
+              </span>
+            ) : (
+              "🚀 Generate My Itinerary"
+            )}
+          </button>
+
+          {error && (
+            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-red-500 text-center font-medium bg-red-50 py-3 rounded-xl">
+              {error}
+            </motion.p>
+          )}
+        </div>
+      </motion.div>
+
+      <div className="max-w-7xl mx-auto mt-12">
+        {loading ? (
+          <div className="grid lg:grid-cols-2 gap-8">
+            <div className="space-y-6">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-48 bg-white/70 rounded-3xl animate-pulse shadow-xl" />
+              ))}
+            </div>
+            <div className="h-[500px] bg-white/70 rounded-3xl animate-pulse shadow-2xl" />
+          </div>
+        ) : Object.keys(itinerary).length > 0 ? (
+          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="grid lg:grid-cols-2 gap-8">
+            <div className="space-y-6 max-h-screen overflow-y-auto pr-4">
+              {Object.entries(itinerary).map(([day, details]) => (
+                <ItineraryCard key={day} day={day} details={details} onPlaceClick={handlePlaceClick} />
+              ))}
+            </div>
+
+            <div className="sticky top-6">
+              <Suspense fallback={<div className="h-[500px] bg-white rounded-3xl shadow-2xl animate-pulse flex items-center justify-center"><span className="text-6xl">🗺️</span></div>}>
+                <MapView itinerary={itinerary} selectedPlace={selectedPlace} />
+              </Suspense>
+            </div>
+          </motion.div>
+        ) : (
+          <div className="text-center py-20">
+            <p className="text-2xl text-gray-500">
+              Fill the form above and click <span className="font-bold text-indigo-600">"Generate My Itinerary"</span> to begin your journey ✨
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
