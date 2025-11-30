@@ -65,7 +65,7 @@ public class TourPlanService {
             ObjectMapper mapper = new ObjectMapper();
             JsonNode root = mapper.readTree(response);
 
-            // extract the main text from model
+           
             String content = extractContent(root);
             System.out.println("CONTENT == " + content);
 

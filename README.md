@@ -20,8 +20,18 @@
 ---
 
 ## 📖 About
-**AI Tour Planner** is a full-stack travel planning application that helps users generate personalized itineraries.  
-It uses **AI + Spring Boot backend** to analyze destinations, duration, and interests, then produces smart day-wise plans.
+**Raahi** is a full-stack travel planning application that generates personalized, AI-powered itineraries for users.
+It uses a **Spring Boot backend + AI model** to analyze the user’s destination, trip duration, and interests, and then creates a smart, day-wise itinerary.
+
+Each itinerary includes:
+
+Location details with latitude–longitude mapping
+
+Clickable Google Maps directions
+
+Optimized morning, afternoon, and evening plans
+
+Raahi makes trip planning faster, smarter, and fully automated.
 
 ---
 
@@ -37,35 +47,55 @@ It uses **AI + Spring Boot backend** to analyze destinations, duration, and inte
 ---
 
 ## 🛠 Tech Stack
-**Frontend:** React, Tailwind CSS, Axios  
+**Frontend:** React, Tailwind CSS, Axios,React Leaflet (OpenStreetMap)
 **Backend:** Spring Boot, Java, Spring Security  
 **Database:** MySQL  
-**Authentication:** JWT & BCrypt Password Encoder  
-**Tools:** Postman, Maven, npm, VS Code
+**Tools:** Postman, Maven, npm, VS Code,Openrouter api
 
 ---
 
 ## 📁 Repository Structure
 raahi/
 │
-├── backend/ # Spring Boot backend source code
-│ ├── src/
-│ ├── pom.xml
+├── backend/                 # Spring Boot backend source code
+│   ├── src/
+│   ├── pom.xml
 │
-├── frontend/ # React frontend source code
-│ ├── src/
-│ ├── package.json
+├── frontend/                # React frontend source code
+│   ├── src/
+│   ├── package.json
 │
+├── screenshots/             # Project screenshots used in README
+│   ├── home.png
+│   ├── dashboard.png
+│   ├── about.png
+│   └── ...
+│   
 └── README.md
+
+
 
 ---
 
 ## 📸 Screenshots
-![Homepage](path-to-screenshot1.png)  
+![Homepage](screenshots/home.png)  
 *Homepage with sections for Home, About & Login*
 
-![Itinerary](path-to-screenshot2.png)  
-*AI-generated itinerary with day-wise plan*
+![Aboutpage](screenshots/about.png)  
+*About page explaining Raahi’s AI-powered trip planning features*
+
+![Loginpage](screenshots/login.png)  
+*Login/Register page where users authenticate and proceed to their personalized dashboard. *
+
+
+![Dashboard](screenshots/dashboard.png)  
+*Dashboard page containing form to take input from user *
+
+![Itineraryloaded](screenshots/itinerary_loaded.png)  
+*Day and time wise itinerary generated along with location pointing on map*
+
+![Dayandtimewiseitinerary](screenshots/day_time_itinerary.png)  
+*Day and time wise(morning,afternoon,evening) itinerary along with locations on map that directs to google map*
 
 ---
 
@@ -83,29 +113,40 @@ raahi/
 ```bash
 git clone https://github.com/divyanshkande/Raahi.git
 cd raahi
+```
 
 ### ⚡ One-Time Setup for Combined Start
 
 ### Create a root-level package.json
-
+```bash
 npm init -y
+```
 
 ### Install concurrently
+```bash
 npm install concurrently
+```
 
 ## Edit root package.json and add:
+```bash
 "scripts": {
   "start": "concurrently \"mvn -f backend/pom.xml spring-boot:run\" \"npm start --prefix frontend\""
 }
+```
 
 ## Install frontend dependencies
+```bash
 npm install --prefix frontend
+```
 
 ---
 
 ##  🚀 Usage (Quick Start)
+
 From the root folder:
+```bash
 npm start
+```
 This will:
 
 Start the backend at: http://localhost:8080
@@ -116,44 +157,53 @@ Start the frontend at: http://localhost:3000
 
 ## 🔐 Environment Variables
 Backend (backend/.env)
+```bash
 DB_USERNAME=your_mysql_username
 DB_PASSWORD=your_mysql_password
 OPENROUTER_API_KEY=your_openrouter_api_key
 DB_URL=your_database_url
+```
 
----
+
 
 ## Update your application.properties:
+```bash
 spring.datasource.username=${DB_USERNAME}
 spring.datasource.password=${DB_PASSWORD}
 openrouter.api.key=${OPENROUTER_API_KEY}
 spring.datasource.url=${DB_URL}
+```
 
 ---
 
-## 🔮 Future Scope
+### 🔮 Future Scope
 
-🗺️ Map integration
+- 🌐 **Hotel Rooms Booking System**  
+  Allow users to search, book, and manage hotel rooms for their trips.
 
-🌓 Dark mode support
+- 🌓 **Dark Mode Support**  
+  Implement a theme toggle for light/dark modes to enhance UX.
 
-🤖 AI-based trip cost prediction
+- 🤖 **AI-Based Trip Cost Prediction**  
+  Integrate machine learning to estimate trip costs based on user preferences and past data.
 
-📲 PWA (offline support)
+- 📲 **Progressive Web App (PWA)**  
+  Add offline support, caching to minimize API calls, and deployment as a PWA.  
+  Optionally, train your own ML model for improved predictions.
+
 
 ---
 
 ## 🤝 Contributing
-
 Fork the repository 🍴
-
 Create a feature branch 🌿
-
 Commit your changes ✅
-
 Open a Pull Request 🚀
 
 ---
 
 ## 📜 License
 This project is licensed under the MIT License.
+See the [LICENSE](LICENSE) file for more details.
+
+---

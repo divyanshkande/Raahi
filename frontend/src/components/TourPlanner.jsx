@@ -6,7 +6,7 @@ import DaysInput from "./DaysInput";
 import InterestsInput from "./InterestsInput";
 import ItineraryCard from "./ItineraryCard";
 
-// ← THIS WAS MISSING! ADD THIS LINE
+
 import { getItinerary } from "../services/api";
 
 // Lazy load the heavy MapView

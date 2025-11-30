@@ -28,10 +28,7 @@ public class TourPlanController {
         } catch (Exception e) {
             e.printStackTrace();
 
-            // --------------------------------------------
-            // MATCH THE TYPE EXACTLY:
-            // Map<String, Map<String, List<TourResponse.Place>>>
-            // --------------------------------------------
+            
             Map<String, Map<String, List<TourResponse.Place>>> fallbackItinerary
                     = new HashMap<>();
 
