@@ -30,6 +30,9 @@ public class DotenvEnvironmentPostProcessor implements EnvironmentPostProcessor 
         if (dotenv.get("DB_URL") != null) {
             envProps.put("spring.datasource.url", dotenv.get("DB_URL"));
         }
+        if (dotenv.get("OPENROUTER_MODEL_NAME") != null) {
+            envProps.put("openrouter.model.name", dotenv.get("OPENROUTER_MODEL_NAME"));
+        }
 
         
         

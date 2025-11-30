@@ -1,14 +1,9 @@
 package com.divyansh.aitourplanner;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import com.divyansh.aitourplanner.model.TourRequest;
 import com.divyansh.aitourplanner.model.TourResponse;
@@ -21,7 +16,6 @@ public class TourPlanController {
     @Autowired
     private TourPlanService tourPlanService;
 
-
     @PostMapping("/plan")
     public TourResponse generateTourPlan(@RequestBody TourRequest request) {
         try {
@@ -30,17 +24,34 @@ public class TourPlanController {
                     request.getDays(),
                     request.getInterests()
             );
+
         } catch (Exception e) {
             e.printStackTrace();
 
-            // Create a placeholder/fallback itinerary map
-            Map<String, Map<String, Object>> fallbackItinerary = new HashMap<>();
+            // --------------------------------------------
+            // MATCH THE TYPE EXACTLY:
+            // Map<String, Map<String, List<TourResponse.Place>>>
+            // --------------------------------------------
+            Map<String, Map<String, List<TourResponse.Place>>> fallbackItinerary
+                    = new HashMap<>();
+
             for (int i = 1; i <= request.getDays(); i++) {
-                Map<String, Object> dayPlan = new HashMap<>();
-                dayPlan.put("morning", "No plan available due to error.");
-                dayPlan.put("afternoon", "No plan available due to error.");
-                dayPlan.put("evening", "No plan available due to error.");
-                fallbackItinerary.put("Day " + i, dayPlan);
+
+                Map<String, List<TourResponse.Place>> day = new HashMap<>();
+
+                day.put("morning", List.of(
+                        new TourResponse.Place("Error", "No plan available", 0, 0)
+                ));
+
+                day.put("afternoon", List.of(
+                        new TourResponse.Place("Error", "No plan available", 0, 0)
+                ));
+
+                day.put("evening", List.of(
+                        new TourResponse.Place("Error", "No plan available", 0, 0)
+                ));
+
+                fallbackItinerary.put("Day " + i, day);
             }
 
             return new TourResponse(

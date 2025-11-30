@@ -4,16 +4,17 @@ import com.divyansh.aitourplanner.model.TourResponse;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.ClientResponse;
+
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
+import org.springframework.web.reactive.function.client.ClientResponse;
+
 import reactor.core.publisher.Mono;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Service
 public class TourPlanService {
@@ -21,103 +22,187 @@ public class TourPlanService {
     @Value("${openrouter.api.key}")
     private String apiKey;
 
+    @Value("${openrouter.model.name}")
+    private String modelname;
+
     private final WebClient webClient;
 
-    public TourPlanService(WebClient.Builder webClientBuilder) {
-        this.webClient = webClientBuilder.build();
+    public TourPlanService(WebClient.Builder builder) {
+        this.webClient = builder.build();
     }
 
+    // ---------------------------------------------------------
+    //                  MAIN FUNCTION
+    // ---------------------------------------------------------
     public TourResponse generatePlan(String city, int days, List<String> interests) {
-        String interestsStr = String.join(", ", interests);
 
-        String prompt = String.format(
-                "Create a detailed %d-day tour itinerary for %s focusing on interests: %s. " +
-                        "Return the itinerary strictly in JSON format like below:\n" +
-                        "{\n" +
-                        "  \"Day 1\": {\"morning\": {}, \"afternoon\": {}, \"evening\": {}, \"foodTip\": \"\", \"transportTip\": \"\"},\n" +
-                        "  \"Day 2\": {\"morning\": {}, \"afternoon\": {}, \"evening\": {}, \"foodTip\": \"\", \"transportTip\": \"\"},\n" +
-                        "  ...\n" +
-                        "}\n" +
-                        "Each period should include an activity and description. Also add foodTip and transportTip per day.",
-                days, city, interestsStr
-        );
+        String prompt = String.format("""
+                Generate a %d-day travel itinerary for %s.
+                Include morning, afternoon, evening for each day.
+                Return ONLY pure JSON like:
+                {
+                  "itinerary": {
+                    "Day 1": {
+                      "morning": [{ "name": "...", "description": "...", "lat": 0, "lng": 0 }],
+                      "afternoon": [...],
+                      "evening": [...]
+                    }
+                  }
+                }
+                """, days, city);
 
         Map<String, Object> requestBody = Map.of(
-                "model", "google/gemini-2.0-flash-exp:free",
+                "model", modelname,
                 "messages", List.of(Map.of("role", "user", "content", prompt))
         );
 
-        Map<String, Map<String, Object>> itineraryMap;
+        Map<String, Map<String, List<TourResponse.Place>>> itinerary;
 
         try {
-            String rawResponse = callApiWithRetry(requestBody);
+            String response = callApiWithRetry(requestBody);
+            System.out.println("RAW == " + response);
+
             ObjectMapper mapper = new ObjectMapper();
-            JsonNode root = mapper.readTree(rawResponse);
-            String content = root.path("choices").get(0).path("message").path("content").asText().trim();
+            JsonNode root = mapper.readTree(response);
 
-            // Extract JSON safely
-            int start = content.indexOf("{");
-            int end = content.lastIndexOf("}");
-            if (start == -1 || end == -1) throw new Exception("No valid JSON found in AI response");
-            String itineraryJson = content.substring(start, end + 1);
+            // extract the main text from model
+            String content = extractContent(root);
+            System.out.println("CONTENT == " + content);
 
-            // Parse JSON into Map<String, Map<String, Object>>
-            itineraryMap = mapper.readValue(itineraryJson,
-                    new TypeReference<Map<String, Map<String, Object>>>() {});
+            // extract only JSON
+            int s = content.indexOf("{");
+            int e = content.lastIndexOf("}");
 
-        } catch (Exception e) {
-            e.printStackTrace();
-            itineraryMap = generateEmptyItinerary(days);
+            if (s == -1 || e == -1) {
+                throw new Exception("No JSON found!");
+            }
+
+            String json = content.substring(s, e + 1);
+            System.out.println("FINAL JSON BLOCK == " + json);
+
+            JsonNode itineraryNode = mapper.readTree(json).path("itinerary");
+
+            itinerary = mapper.convertValue(
+                    itineraryNode,
+                    new TypeReference<>() {}
+            );
+
+            fillMissing(days, itinerary);
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            itinerary = fallback(days);
         }
 
-        return new TourResponse(city, days, interests, itineraryMap);
+        return new TourResponse(city, days, interests, itinerary);
     }
 
-    private String callApiWithRetry(Map<String, Object> requestBody) throws Exception {
-        int maxRetries = 3;
-        int attempt = 0;
+    // ---------------------------------------------------------
+    //            API CALL + RETRY
+    // ---------------------------------------------------------
+    private String callApiWithRetry(Map<String, Object> body) throws Exception {
 
-        while (attempt < maxRetries) {
+        int retries = 0;
+
+        while (retries < 5) {
+
             try {
                 return webClient.post()
                         .uri("https://openrouter.ai/api/v1/chat/completions")
                         .header("Authorization", "Bearer " + apiKey)
                         .header("Content-Type", "application/json")
-                        .bodyValue(requestBody)
+                        .header("HTTP-Referer", "https://raahi.ai")
+                        .header("X-Title", "Raahi-Tour-Planner")
+                        .bodyValue(body)
                         .exchangeToMono(this::handleResponse)
                         .block();
-            } catch (WebClientResponseException.TooManyRequests ex) {
-                attempt++;
-                String retryAfter = ex.getHeaders().getFirst("Retry-After");
-                long waitSeconds = retryAfter != null ? Long.parseLong(retryAfter) : 5;
-                System.out.println("Rate limited. Waiting for " + waitSeconds + " seconds before retrying...");
-                Thread.sleep(waitSeconds * 1000);
+
+            } catch (WebClientResponseException ex) {
+
+                if (ex.getStatusCode().value() == 429) {
+                    retries++;
+                    long wait = (long) Math.pow(2, retries) * 2000;
+                    Thread.sleep(wait);
+                } else {
+                    throw ex;
+                }
+
             }
         }
-        throw new Exception("API request failed after " + maxRetries + " retries due to rate limits.");
+
+        throw new Exception("Failed after retries");
     }
 
     private Mono<String> handleResponse(ClientResponse response) {
         if (response.statusCode().is2xxSuccessful()) {
             return response.bodyToMono(String.class);
-        } else if (response.statusCode().value() == 429) {
-            return response.createException().flatMap(Mono::error);
-        } else {
-            return response.createException().flatMap(Mono::error);
+        }
+        return response.createException().flatMap(Mono::error);
+    }
+
+    // ---------------------------------------------------------
+    //            EXTRACT CONTENT FROM ANY MODEL FORMAT
+    // ---------------------------------------------------------
+    private String extractContent(JsonNode root) {
+
+        JsonNode choice = root.path("choices").get(0);
+
+        if (choice.has("message") && choice.get("message").has("content"))
+            return choice.get("message").get("content").asText();
+
+        if (choice.has("text"))
+            return choice.get("text").asText();
+
+        if (choice.has("delta") && choice.get("delta").has("content"))
+            return choice.get("delta").get("content").asText();
+
+        return "";
+    }
+
+    // ---------------------------------------------------------
+    //              FIX MISSING VALUES
+    // ---------------------------------------------------------
+    private void fillMissing(int days,
+                             Map<String, Map<String, List<TourResponse.Place>>> map) {
+
+        for (int i = 1; i <= days; i++) {
+
+            String key = "Day " + i;
+            map.putIfAbsent(key, new HashMap<>());
+
+            Map<String, List<TourResponse.Place>> day = map.get(key);
+
+            ensureSlot(day, "morning");
+            ensureSlot(day, "afternoon");
+            ensureSlot(day, "evening");
         }
     }
 
-    private Map<String, Map<String, Object>> generateEmptyItinerary(int days) {
-        Map<String, Map<String, Object>> empty = new HashMap<>();
-        for (int i = 1; i <= days; i++) {
-            Map<String, Object> dayPlan = new HashMap<>();
-            dayPlan.put("morning", "No plan available due to error or API limit.");
-            dayPlan.put("afternoon", "No plan available due to error or API limit.");
-            dayPlan.put("evening", "No plan available due to error or API limit.");
-            dayPlan.put("foodTip", "No food tip available.");
-            dayPlan.put("transportTip", "No transport tip available.");
-            empty.put("Day " + i, dayPlan);
+    private void ensureSlot(Map<String, List<TourResponse.Place>> day, String slot) {
+        if (!day.containsKey(slot)) {
+            day.put(slot, List.of(
+                    new TourResponse.Place("No plan", "Unavailable", 0, 0)
+            ));
         }
-        return empty;
     }
-}
+
+    // ---------------------------------------------------------
+    //            FALLBACK (SAFE EMPTY STRUCTURE)
+    // ---------------------------------------------------------
+    private Map<String, Map<String, List<TourResponse.Place>>> fallback(int days) {
+
+        Map<String, Map<String, List<TourResponse.Place>>> map = new HashMap<>();
+
+        for (int i = 1; i <= days; i++) {
+
+            Map<String, List<TourResponse.Place>> day = new HashMap<>();
+
+            day.put("morning", List.of(new TourResponse.Place("No data", "Error", 0, 0)));
+            day.put("afternoon", List.of(new TourResponse.Place("No data", "Error", 0, 0)));
+            day.put("evening", List.of(new TourResponse.Place("No data", "Error", 0, 0)));
+
+            map.put("Day " + i, day);
+        }
+        return map;
+    }
+} 

@@ -40,7 +40,10 @@ export default function ItineraryCard({ day, details, onPlaceClick }) {
         <div key={period} className="mb-10">
           <div className="flex items-center gap-4 mb-5">
             <div className={`text-5xl`}>{style.emoji}</div>
-            <h3 className="text-2xl font-bold capitalize bg-gradient-to-r ${style.gradient} bg-clip-text text-transparent">
+            <h3
+  className={`text-2xl font-bold capitalize bg-gradient-to-r ${style.gradient} bg-clip-text text-transparent`}
+>
+
               {period}
             </h3>
           </div>
