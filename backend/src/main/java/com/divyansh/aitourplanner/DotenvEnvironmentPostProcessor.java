@@ -33,6 +33,9 @@ public class DotenvEnvironmentPostProcessor implements EnvironmentPostProcessor 
         if (dotenv.get("OPENROUTER_MODEL_NAME") != null) {
             envProps.put("openrouter.model.name", dotenv.get("OPENROUTER_MODEL_NAME"));
         }
+        if (dotenv.get("OPENROUTER_PROMPT") != null) {
+    envProps.put("openrouter.prompt", dotenv.get("OPENROUTER_PROMPT"));
+}
 
         
         

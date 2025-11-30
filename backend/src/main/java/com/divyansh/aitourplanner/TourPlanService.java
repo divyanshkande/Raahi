@@ -25,6 +25,10 @@ public class TourPlanService {
     @Value("${openrouter.model.name}")
     private String modelname;
 
+    @Value("${openrouter.prompt}")
+private String promptTemplate;
+
+
     private final WebClient webClient;
 
     public TourPlanService(WebClient.Builder builder) {
@@ -36,20 +40,7 @@ public class TourPlanService {
     // ---------------------------------------------------------
     public TourResponse generatePlan(String city, int days, List<String> interests) {
 
-        String prompt = String.format("""
-                Generate a %d-day travel itinerary for %s.
-                Include morning, afternoon, evening for each day.
-                Return ONLY pure JSON like:
-                {
-                  "itinerary": {
-                    "Day 1": {
-                      "morning": [{ "name": "...", "description": "...", "lat": 0, "lng": 0 }],
-                      "afternoon": [...],
-                      "evening": [...]
-                    }
-                  }
-                }
-                """, days, city);
+        String prompt = String.format(promptTemplate, days, city);
 
         Map<String, Object> requestBody = Map.of(
                 "model", modelname,

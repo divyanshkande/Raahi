@@ -162,6 +162,7 @@ DB_USERNAME=your_mysql_username
 DB_PASSWORD=your_mysql_password
 OPENROUTER_API_KEY=your_openrouter_api_key
 DB_URL=your_database_url
+OPENROUTER_MODEL_NAME=your_openrouter_model_name
 ```
 
 
@@ -172,6 +173,7 @@ spring.datasource.username=${DB_USERNAME}
 spring.datasource.password=${DB_PASSWORD}
 openrouter.api.key=${OPENROUTER_API_KEY}
 spring.datasource.url=${DB_URL}
+openrouter.model.name=${OPENROUTER_MODEL_NAME}
 ```
 
 ---
