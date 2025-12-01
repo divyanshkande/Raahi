@@ -12,7 +12,7 @@ import Home from "./pages/Home";
 import TourPlanner from "./components/TourPlanner";
 import "leaflet/dist/leaflet.css";
 
-// REDUCED to 8 particles (was 18) + optimized
+
 const FloatingParticles = () => {
   return (
     <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10">
@@ -58,7 +58,7 @@ function App() {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const location = useLocation();
 
-  // DEBOUNCED mouse move — this is the #1 fix
+ 
   useEffect(() => {
     let raf;
     const handleMouse = (e) => {
@@ -76,12 +76,12 @@ function App() {
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-gray-50">
-      {/* Simplified beautiful background */}
+      
       <div className="fixed inset-0 -z-20">
         <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-blue-900/20 to-indigo-900/20" />
       </div>
 
-      {/* Much lighter mouse glow */}
+      
       <motion.div
         className="pointer-events-none fixed inset-0 -z-10"
         animate={{
@@ -101,7 +101,7 @@ function App() {
         <Navbar />
       </motion.div>
 
-      {/* Hero sparkles only on home */}
+      
       {location.pathname === "/" && (
         <>
           <motion.div

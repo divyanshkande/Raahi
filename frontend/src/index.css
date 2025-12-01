@@ -2,9 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* =============================================
-   Global Scroll Fix – Fixed Navbar Compensation
-   ============================================= */
+
 html {
   scroll-behavior: smooth !important;
   scroll-padding-top: 80px !important;
@@ -16,7 +14,7 @@ html {
   }
 }
 
-/* Optional: extra safety for future pages */
+
 *, *::before, *::after {
   scroll-margin-top: 80px;
 }

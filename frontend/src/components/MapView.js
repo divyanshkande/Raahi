@@ -1,11 +1,11 @@
-// src/components/MapView.jsx
+
 import React from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import { motion } from "framer-motion";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-// Fix Leaflet default marker icons
+
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
@@ -31,7 +31,7 @@ const createIcon = () => {
   });
 };
 
-// FlyTo with 100% safety
+
 function FlyToPlace({ place }) {
   const map = useMap();
 
@@ -50,7 +50,7 @@ function FlyToPlace({ place }) {
 }
 
 export default function MapView({ itinerary, selectedPlace }) {
-  // SUPER SAFE places extraction
+ 
   const places = React.useMemo(() => {
     if (!itinerary || typeof itinerary !== "object") return [];
 

@@ -4,20 +4,19 @@ import { Link, useLocation } from "react-router-dom";
 export default function Navbar() {
   const location = useLocation();
 
-  // Hide navbar ONLY when user is on /plan (or any logged-in route)
-  // But SHOW it on the home page (/)
+  
   const isOnDashboard = location.pathname === "/plan" || location.pathname.startsWith("/plan");
 
-  // Also hide if user is logged in AND not on home page
+  
   const isLoggedIn = localStorage.getItem("userEmail") !== null;
 
   if (isLoggedIn && isOnDashboard) {
-    return null; // ← Navbar completely gone on dashboard
+    return null; 
   }
 
-  // Show navbar only on the landing page
+  
   if (location.pathname !== "/" && !isOnDashboard) {
-    return null; // Optional: hide on other future pages too
+    return null; 
   }
 
   return (

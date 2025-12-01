@@ -1,4 +1,4 @@
-// src/components/TourPlanner.jsx
+
 import React, { useState, lazy, Suspense } from "react";
 import { motion } from "framer-motion";
 import CityInput from "./CityInput";
@@ -9,7 +9,7 @@ import ItineraryCard from "./ItineraryCard";
 
 import { getItinerary } from "../services/api";
 
-// Lazy load the heavy MapView
+
 const MapView = lazy(() => import("./MapView"));
 
 export default function TourPlanner() {

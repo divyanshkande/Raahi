@@ -22,14 +22,14 @@ export default function ItineraryCard({ day, details, onPlaceClick }) {
       return <p className="text-gray-400 italic">No places planned yet...</p>;
     }
 
-    // Old format: array of places
+    
     if (Array.isArray(details)) {
       return details.map((place, i) => (
         <PlaceCard key={i} place={place} onClick={onPlaceClick} style={getPeriodStyle("afternoon")} />
       ));
     }
 
-    // New format: morning / afternoon / evening
+    
     return ["morning", "afternoon", "evening"].map((period) => {
       const places = details[period] || [];
       if (places.length === 0) return null;
@@ -123,7 +123,7 @@ export default function ItineraryCard({ day, details, onPlaceClick }) {
   );
 }
 
-// Extracted reusable Place Card
+
 function PlaceCard({ place, onClick, style }) {
   return (
     <motion.div
