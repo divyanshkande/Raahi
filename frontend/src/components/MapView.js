@@ -1,4 +1,3 @@
-
 import React from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import { motion } from "framer-motion";
@@ -10,7 +9,7 @@ delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
   iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png",
-shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
+  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
 
 });
 
@@ -50,11 +49,12 @@ function FlyToPlace({ place }) {
 }
 
 export default function MapView({ itinerary, selectedPlace }) {
- 
-  const places = React.useMemo(() => {
-    if (!itinerary || typeof itinerary !== "object") return [];
+
+  const { places, unverifiedCount } = React.useMemo(() => {
+    if (!itinerary || typeof itinerary !== "object") return { places: [], unverifiedCount: 0 };
 
     const allPlaces = [];
+    let unverifiedCount = 0;
 
     Object.values(itinerary).forEach(day => {
       if (!day || typeof day !== "object") return;
@@ -62,25 +62,29 @@ export default function MapView({ itinerary, selectedPlace }) {
       Object.values(day).forEach(period => {
         if (Array.isArray(period)) {
           period.forEach(p => {
-            if (p && p.name && p.lat && p.lng) {
+            if (p && p.name && p.lat !== undefined && p.lng !== undefined) {
               const lat = parseFloat(p.lat);
               const lng = parseFloat(p.lng);
               if (!isNaN(lat) && !isNaN(lng)) {
-                allPlaces.push({ ...p, lat, lng });
+                const verified = p.coordinatesVerified !== false;
+                if (!verified) unverifiedCount++;
+                allPlaces.push({ ...p, lat, lng, coordinatesVerified: verified });
               }
             }
           });
-        } else if (period && period.name && period.lat && period.lng) {
+        } else if (period && period.name && period.lat !== undefined && period.lng !== undefined) {
           const lat = parseFloat(period.lat);
           const lng = parseFloat(period.lng);
           if (!isNaN(lat) && !isNaN(lng)) {
-            allPlaces.push({ ...period, lat, lng });
+            const verified = period.coordinatesVerified !== false;
+            if (!verified) unverifiedCount++;
+            allPlaces.push({ ...period, lat, lng, coordinatesVerified: verified });
           }
         }
       });
     });
 
-    return allPlaces;
+    return { places: allPlaces, unverifiedCount };
   }, [itinerary]);
 
   const center = places.length > 0
@@ -116,30 +120,57 @@ export default function MapView({ itinerary, selectedPlace }) {
         />
 
         {places.map((place, idx) => (
-          <Marker
-            key={`${place.name}-${idx}`}
-            position={[place.lat, place.lng]}
-            icon={createIcon()}
-          >
-            <Popup>
-              <div className="p-5 bg-white rounded-2xl min-w-[280px]">
-                <h3 className="text-xl font-bold text-indigo-700 mb-2">📍 {place.name}</h3>
-                <p className="text-gray-600 text-sm mb-4">{place.description || "Amazing place to visit!"}</p>
-                <a
-                  href={`https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block text-center bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 transition"
-                >
-                  🧭 Directions
-                </a>
-              </div>
-            </Popup>
-          </Marker>
+          place.coordinatesVerified ? (
+            <Marker
+              key={`${place.name}-${idx}`}
+              position={[place.lat, place.lng]}
+              icon={createIcon()}
+            >
+              <Popup>
+                <div className="p-5 bg-white rounded-2xl min-w-[280px]">
+                  <h3 className="text-xl font-bold text-indigo-700 mb-2">📍 {place.name}</h3>
+                  <p className="text-gray-600 text-sm mb-4">{place.description || "Amazing place to visit!"}</p>
+                  {place.mapsUrl && (
+                    <a
+                      href={place.mapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block text-center bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 transition"
+                    >
+                      🧭 Directions
+                    </a>
+                  )}
+                  {!place.mapsUrl && (
+                    <div className="block text-center bg-amber-100 text-amber-800 font-medium py-3 rounded-xl border border-amber-200">
+                      📍 Location approximate - verify before traveling
+                    </div>
+                  )}
+                </div>
+              </Popup>
+            </Marker>
+          ) : null
         ))}
 
         <FlyToPlace place={selectedPlace} />
       </MapContainer>
+
+      {unverifiedCount > 0 && (
+        <div className="absolute bottom-4 left-4 right-4 z-10">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mx-4 shadow-lg"
+          >
+            <div className="flex items-start gap-3">
+              <span className="text-amber-600 text-xl flex-shrink-0 mt-0.5">⚠️</span>
+              <div className="text-sm text-amber-800 flex-1">
+                <p className="font-semibold">{unverifiedCount} location{unverifiedCount === 1 ? '' : 's'} have approximate coordinates</p>
+                <p className="mt-1">Multiple stops share the same coordinates (likely city center). Map markers hidden for these stops. Please verify locations independently.</p>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       <div className="absolute top-4 left-4 z-10 bg-white/95 backdrop-blur rounded-2xl px-6 py-4 shadow-xl border border-gray-200">
         <h2 className="text-2xl font-bold text-indigo-700">Your Trip</h2>

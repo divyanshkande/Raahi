@@ -11,6 +11,10 @@
 # production
 /build
 
+# Environment / secrets
+*.env
+.env.docker
+
 # misc
 .DS_Store
 .env.local
@@ -21,3 +25,9 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Java crash logs
+hs_err_pid*.log
+replay_pid*.log
+**/hs_err_pid*.log
+**/replay_pid*.log

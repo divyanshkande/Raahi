@@ -22,14 +22,12 @@ export default function ItineraryCard({ day, details, onPlaceClick }) {
       return <p className="text-gray-400 italic">No places planned yet...</p>;
     }
 
-    
     if (Array.isArray(details)) {
       return details.map((place, i) => (
         <PlaceCard key={i} place={place} onClick={onPlaceClick} style={getPeriodStyle("afternoon")} />
       ));
     }
 
-    
     return ["morning", "afternoon", "evening"].map((period) => {
       const places = details[period] || [];
       if (places.length === 0) return null;
@@ -125,12 +123,19 @@ export default function ItineraryCard({ day, details, onPlaceClick }) {
 
 
 function PlaceCard({ place, onClick, style }) {
+  const coordsVerified = place.coordinatesVerified !== false;
+
   return (
     <motion.div
       whileHover={{ x: 12, scale: 1.03 }}
       onClick={() => onClick?.(place)}
-      className={`group relative bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-lg hover:shadow-2xl border ${style.border} cursor-pointer transition-all duration-400`}
+      className={`group relative bg-white/80 backdrop-blur-xl rounded-2xl p-6 shadow-lg hover:shadow-2xl border ${style.border} cursor-pointer transition-all duration-400 ${!coordsVerified ? 'opacity-75 ring-2 ring-amber-300' : ''}`}
     >
+      {!coordsVerified && (
+        <div className="absolute top-2 right-2 z-10 bg-amber-100 text-amber-800 text-xs font-medium px-2 py-1 rounded-full border border-amber-200">
+          ⚠️ Approximate location
+        </div>
+      )}
       <div className="flex gap-5">
         <div className="text-4xl flex-shrink-0">{style.emoji}</div>
         <div className="flex-1">
@@ -145,12 +150,17 @@ function PlaceCard({ place, onClick, style }) {
               <span>⏱</span> {place.duration}
             </div>
           )}
+          {!coordsVerified && (
+            <p className="mt-2 text-xs text-amber-700 italic">
+              Location coordinates may be approximate (multiple stops share same coordinates). Verify independently.
+            </p>
+          )}
         </div>
       </div>
 
       {/* Shine Effect on Hover */}
       <div className="absolute inset-0 rounded-2xl overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-40 transition-opacity duration-1000 translate-x-[-100%] group-hover:translate-x-[100%]" 
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-40 transition-opacity duration-1000 translate-x-[-100%] group-hover:translate-x-[100%]"
           style={{ transform: "skewX(-20deg)" }}
         />
       </div>

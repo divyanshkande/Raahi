@@ -1,5 +1,5 @@
 // src/App.jsx
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -9,7 +9,9 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "./components/Navbar";
 import Home from "./pages/Home";
+import Auth from "./pages/Auth";
 import TourPlanner from "./components/TourPlanner";
+import ProtectedRoute from "./components/ProtectedRoute";
 import "leaflet/dist/leaflet.css";
 
 
@@ -58,7 +60,6 @@ function App() {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const location = useLocation();
 
- 
   useEffect(() => {
     let raf;
     const handleMouse = (e) => {
@@ -76,12 +77,11 @@ function App() {
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-gray-50">
-      
+
       <div className="fixed inset-0 -z-20">
         <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-blue-900/20 to-indigo-900/20" />
       </div>
 
-      
       <motion.div
         className="pointer-events-none fixed inset-0 -z-10"
         animate={{
@@ -101,7 +101,6 @@ function App() {
         <Navbar />
       </motion.div>
 
-      
       {location.pathname === "/" && (
         <>
           <motion.div
@@ -124,7 +123,15 @@ function App() {
       <PageTransition>
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/plan" element={<TourPlanner />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route
+            path="/plan"
+            element={
+              <ProtectedRoute>
+                <TourPlanner />
+              </ProtectedRoute>
+            }
+          />
         </Routes>
       </PageTransition>
 

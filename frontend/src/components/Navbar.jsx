@@ -1,22 +1,27 @@
 import React from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { isAuthenticated, clearSession } from "../utils/auth";
 
 export default function Navbar() {
   const location = useLocation();
+  const navigate = useNavigate();
 
-  
   const isOnDashboard = location.pathname === "/plan" || location.pathname.startsWith("/plan");
+  const loggedIn = isAuthenticated();
 
-  
-  const isLoggedIn = localStorage.getItem("userEmail") !== null;
+  const handleLogout = () => {
+    clearSession();
+    navigate("/auth");
+  };
 
-  if (isLoggedIn && isOnDashboard) {
-    return null; 
+  if (loggedIn && isOnDashboard) {
+    return null;
   }
 
-  
   if (location.pathname !== "/" && !isOnDashboard) {
-    return null; 
+    // Still show the bar on /auth so there's a way back home, but not the
+    // sign-in CTA (that's the whole point of the page).
+    if (location.pathname !== "/auth") return null;
   }
 
   return (
@@ -32,18 +37,28 @@ export default function Navbar() {
 
         {/* Nav Links */}
         <div className="hidden md:flex items-center space-x-10">
-          <a href="#home" className="text-gray-700 font-medium hover:text-indigo-600 transition">
+          <Link to="/" className="text-gray-700 font-medium hover:text-indigo-600 transition">
             Home
-          </a>
-          <a href="#about" className="text-gray-700 font-medium hover:text-indigo-600 transition">
+          </Link>
+          <a href="/#about" className="text-gray-700 font-medium hover:text-indigo-600 transition">
             About
           </a>
-          <a
-            href="#auth"
-            className="px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-full hover:bg-indigo-700 hover:shadow-lg transition"
-          >
-            Sign In
-          </a>
+
+          {loggedIn ? (
+            <button
+              onClick={handleLogout}
+              className="px-6 py-2.5 bg-gray-200 text-gray-800 font-medium rounded-full hover:bg-gray-300 hover:shadow-lg transition"
+            >
+              Sign Out
+            </button>
+          ) : (
+            <Link
+              to="/auth"
+              className="px-6 py-2.5 bg-indigo-600 text-white font-medium rounded-full hover:bg-indigo-700 hover:shadow-lg transition"
+            >
+              Sign In
+            </Link>
+          )}
         </div>
 
         <div className="md:hidden">

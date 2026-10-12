@@ -1,167 +1,370 @@
 package com.divyansh.aitourplanner;
 
+import com.divyansh.aitourplanner.exception.custom.AiServiceException;
+import com.divyansh.aitourplanner.exception.custom.ItineraryValidationException;
+import com.divyansh.aitourplanner.model.AiItineraryResult;
+import com.divyansh.aitourplanner.model.AssistantRequest;
+import com.divyansh.aitourplanner.model.AssistantResponse;
+import com.divyansh.aitourplanner.model.ModifyItineraryRequest;
 import com.divyansh.aitourplanner.model.TourResponse;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
+import com.divyansh.aitourplanner.service.CachedItineraryGenerator;
+import com.divyansh.aitourplanner.service.ItineraryTools;
+import com.divyansh.aitourplanner.service.ItineraryValidator;
+import com.divyansh.aitourplanner.service.MapLinkService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.reactive.function.client.WebClientResponseException;
-import org.springframework.web.reactive.function.client.ClientResponse;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
-import reactor.core.publisher.Mono;
-
-import java.util.*;
-
+/**
+ * AI itinerary generation, backed by Spring AI's ChatClient (pointed at
+ * OpenRouter - see SpringAiConfig) instead of the previous raw WebClient
+ * call. Public method signatures are unchanged so TourPlanController and the
+ * existing frontend contract keep working.
+ */
 @Service
 public class TourPlanService {
 
-    @Value("${openrouter.api.key}")
-    private String apiKey;
-
-    @Value("${openrouter.model.name}")
-    private String modelname;
+    private static final Logger log = LoggerFactory.getLogger(TourPlanService.class);
 
     @Value("${openrouter.prompt}")
-private String promptTemplate;
+    private String promptTemplate;
 
+    private final ChatClient chatClient;
+    private final CachedItineraryGenerator cachedItineraryGenerator;
+    private final ItineraryValidator validator;
+    private final MapLinkService mapLinkService;
+    private final ItineraryTools itineraryTools;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
-    private final WebClient webClient;
+    private static final String GUARDRAILS = """
+            Do not state opening hours, prices, ticket availability, or booking \
+            requirements as guaranteed facts - if you mention them, phrase them as \
+            typical/approximate and advise the traveler to verify before visiting.""";
 
-    public TourPlanService(WebClient.Builder builder) {
-        this.webClient = builder.build();
+    public TourPlanService(ChatClient chatClient,
+                            CachedItineraryGenerator cachedItineraryGenerator,
+                            ItineraryValidator validator,
+                            MapLinkService mapLinkService,
+                            ItineraryTools itineraryTools) {
+        this.chatClient = chatClient;
+        this.cachedItineraryGenerator = cachedItineraryGenerator;
+        this.validator = validator;
+        this.mapLinkService = mapLinkService;
+        this.itineraryTools = itineraryTools;
     }
 
     // ---------------------------------------------------------
-    //                  MAIN FUNCTION
+    //                  MAIN FUNCTION (existing endpoint)
     // ---------------------------------------------------------
     public TourResponse generatePlan(String city, int days, List<String> interests) {
-
-        String prompt = String.format(promptTemplate, days, city);
-
-        Map<String, Object> requestBody = Map.of(
-                "model", modelname,
-                "messages", List.of(Map.of("role", "user", "content", prompt))
-        );
-
-        Map<String, Map<String, List<TourResponse.Place>>> itinerary;
+        long totalStart = System.nanoTime();
+        long aiStart, aiEnd, validationStart, validationEnd, conversionStart, conversionEnd;
 
         try {
-            String response = callApiWithRetry(requestBody);
-            System.out.println("RAW == " + response);
+            String prompt = buildGenerationPrompt(city, days, interests);
+            String cacheCity = city == null ? "" : city.trim().toLowerCase().replaceAll("\\s+", " ");
+            String interestsKey = normalizeInterests(interests);
 
-            ObjectMapper mapper = new ObjectMapper();
-            JsonNode root = mapper.readTree(response);
+            aiStart = System.nanoTime();
+            AiItineraryResult aiResult = cachedItineraryGenerator.generate(cacheCity, days, interestsKey, prompt);
+            aiEnd = System.nanoTime();
 
-           
-            String content = extractContent(root);
-            System.out.println("CONTENT == " + content);
+            validationStart = System.nanoTime();
+            // Enforce exact day count after validation
+            enforceDayCount(aiResult, days);
 
-            // extract only JSON
-            int s = content.indexOf("{");
-            int e = content.lastIndexOf("}");
+            fillMissingSlots(days, aiResult);
+            validationEnd = System.nanoTime();
 
-            if (s == -1 || e == -1) {
-                throw new Exception("No JSON found!");
-            }
+            conversionStart = System.nanoTime();
+            TourResponse response = toTourResponse(city, days, interests, aiResult);
+            conversionEnd = System.nanoTime();
 
-            String json = content.substring(s, e + 1);
-            System.out.println("FINAL JSON BLOCK == " + json);
+            log.info("Timing (ms) for city={}, days={}: total={}, ai={}, validation+fill={}, conversion={}",
+                    city, days,
+                    (System.nanoTime() - totalStart) / 1_000_000,
+                    (aiEnd - aiStart) / 1_000_000,
+                    (validationEnd - validationStart) / 1_000_000,
+                    (conversionEnd - conversionStart) / 1_000_000);
 
-            JsonNode itineraryNode = mapper.readTree(json).path("itinerary");
+            return response;
 
-            itinerary = mapper.convertValue(
-                    itineraryNode,
-                    new TypeReference<>() {}
-            );
-
-            fillMissing(days, itinerary);
-
+        } catch (ItineraryValidationException ex) {
+            log.error("Itinerary validation failed for city={}, days={}: {}", city, days, ex.getMessage());
+            throw ex;
+        } catch (AiServiceException ex) {
+            log.error("AI service error for city={}, days={}: {}", city, days, ex.getMessage());
+            throw ex;
         } catch (Exception ex) {
-            ex.printStackTrace();
-            itinerary = fallback(days);
+            log.error("Unexpected error generating tour plan for city={}, days={}: {}", city, days, ex.getMessage(), ex);
+            throw new AiServiceException("Failed to generate itinerary. Please try again.", ex);
         }
+    }
 
-        return new TourResponse(city, days, interests, itinerary);
+    /** Order/case-independent so "food, culture" and "Culture, Food" hit the same cache entry. */
+    private String normalizeInterests(List<String> interests) {
+        if (interests == null || interests.isEmpty()) return "";
+        return interests.stream()
+                .filter(s -> s != null && !s.isBlank())
+                .map(s -> s.trim().toLowerCase())
+                .distinct()
+                .sorted()
+                .collect(Collectors.joining(","));
+    }
+
+    private String buildGenerationPrompt(String city, int days, List<String> interests) {
+        // Sanitize user inputs to prevent prompt injection
+        String safeCity = sanitizeForPrompt(city);
+        String safeInterests = interests == null || interests.isEmpty()
+                ? ""
+                : "Traveler interests: " + interests.stream()
+                        .filter(s -> s != null && !s.isBlank())
+                        .map(this::sanitizeForPrompt)
+                        .collect(Collectors.joining(", ")) + ".";
+
+        String base = String.format(promptTemplate, days, safeCity);
+
+        return base + "\n" + safeInterests
+                + "\nFor each day, include a morning, afternoon and evening activity with a short "
+                + "description and coordinates, plus restaurant suggestions, transport suggestions, "
+                + "general travel tips and safety tips."
+                + "\nCoordinates MUST be in decimal degrees (latitude -90 to 90, longitude -180 to 180). "
+                + "Do NOT use (0,0) as a placeholder. If unsure about coordinates, omit the place."
+                + "\n" + GUARDRAILS;
+    }
+
+    /**
+     * Sanitize user input for safe inclusion in prompts.
+     * Removes control characters and limits length.
+     */
+    private String sanitizeForPrompt(String input) {
+        if (input == null) return "";
+        // Remove control characters, limit length
+        String sanitized = input.replaceAll("[\\p{Cntrl}&&[^\\n\\r\\t]]", "")
+                    .trim();
+        return sanitized.substring(0, Math.min(sanitized.length(), 200));
     }
 
     // ---------------------------------------------------------
-    //            API CALL + RETRY
+    //          AI ITINERARY MODIFICATION (new)
     // ---------------------------------------------------------
-    private String callApiWithRetry(Map<String, Object> body) throws Exception {
+    public TourResponse modifyItinerary(ModifyItineraryRequest request) {
+        try {
+            String currentItineraryJson = objectMapper.writeValueAsString(request.getCurrentItinerary());
+            String interestsLine = (request.getInterests() == null || request.getInterests().isEmpty())
+                    ? "none specified"
+                    : request.getInterests().stream()
+                            .filter(s -> s != null && !s.isBlank())
+                            .map(this::sanitizeForPrompt)
+                            .collect(Collectors.joining(", "));
 
-        int retries = 0;
+            String safeCity = sanitizeForPrompt(request.getCity());
+            String safeInstruction = sanitizeForPrompt(request.getInstruction());
 
-        while (retries < 5) {
+            String prompt = """
+                    You are editing an existing %d-day travel itinerary for %s.
+                    Traveler interests: %s.
 
-            try {
-                return webClient.post()
-                        .uri("https://openrouter.ai/api/v1/chat/completions")
-                        .header("Authorization", "Bearer " + apiKey)
-                        .header("Content-Type", "application/json")
-                        .header("HTTP-Referer", "https://raahi.ai")
-                        .header("X-Title", "Raahi-Tour-Planner")
-                        .bodyValue(body)
-                        .exchangeToMono(this::handleResponse)
-                        .block();
+                    Current itinerary as JSON:
+                    %s
 
-            } catch (WebClientResponseException ex) {
+                    Apply this requested change: "%s"
 
-                if (ex.getStatusCode().value() == 429) {
-                    retries++;
-                    long wait = (long) Math.pow(2, retries) * 2000;
-                    Thread.sleep(wait);
-                } else {
-                    throw ex;
-                }
+                    Only change what the instruction requires; keep everything else from the \
+                    current itinerary as-is. Return the full updated itinerary in the same \
+                    structure (all %d days), including restaurant suggestions, transport \
+                    suggestions, travel tips and safety tips.
+                    %s
+                    """.formatted(request.getDays(), safeCity, interestsLine,
+                    currentItineraryJson, safeInstruction, request.getDays(), GUARDRAILS);
 
+            AiItineraryResult result = chatClient.prompt()
+                    .user(prompt)
+                    .tools(itineraryTools)
+                    .call()
+                    .entity(AiItineraryResult.class);
+
+            validator.validateAndClean(result, request.getDays());
+            enforceDayCount(result, request.getDays());
+            fillMissingSlots(request.getDays(), result);
+
+            return toTourResponse(request.getCity(), request.getDays(), request.getInterests(), result);
+
+        } catch (ItineraryValidationException ex) {
+            log.error("Itinerary validation failed during modification: {}", ex.getMessage());
+            throw ex;
+        } catch (AiServiceException ex) {
+            log.error("AI service error during modification: {}", ex.getMessage());
+            throw ex;
+        } catch (Exception ex) {
+            log.error("Unexpected error modifying itinerary: {}", ex.getMessage(), ex);
+            throw new ItineraryOperationException("Could not modify the itinerary right now.", ex);
+        }
+    }
+
+    // ---------------------------------------------------------
+    //          AI TRAVEL ASSISTANT (new)
+    // ---------------------------------------------------------
+    public AssistantResponse assistantChat(AssistantRequest request) {
+        try {
+            String currentItineraryJson = objectMapper.writeValueAsString(request.getCurrentItinerary());
+            String interestsLine = (request.getInterests() == null || request.getInterests().isEmpty())
+                    ? "none specified"
+                    : request.getInterests().stream()
+                            .filter(s -> s != null && !s.isBlank())
+                            .map(this::sanitizeForPrompt)
+                            .collect(Collectors.joining(", "));
+
+            String safeCity = sanitizeForPrompt(request.getCity());
+            String safeQuestion = sanitizeForPrompt(request.getQuestion());
+
+            String prompt = """
+                    You are a helpful, concise travel assistant for a trip to %s.
+                    Traveler interests: %s.
+
+                    Current itinerary as JSON:
+                    %s
+
+                    Use the available tools for any distance, travel-time, or map-link needs \
+                    instead of guessing. Keep your answer short and practical (a few sentences \
+                    or a short list).
+                    %s
+
+                    Traveler's question: %s
+                    """.formatted(safeCity, interestsLine, currentItineraryJson,
+                    GUARDRAILS, safeQuestion);
+
+            String answer = chatClient.prompt()
+                    .user(prompt)
+                    .tools(itineraryTools)
+                    .call()
+                    .content();
+
+            return new AssistantResponse(answer);
+
+        } catch (AiServiceException ex) {
+            log.error("AI service error in assistant: {}", ex.getMessage());
+            throw ex;
+        } catch (Exception ex) {
+            log.error("Unexpected error in travel assistant: {}", ex.getMessage(), ex);
+            throw new AiServiceException("The travel assistant is unavailable right now.", ex);
+        }
+    }
+
+    /**
+     * Ensures the AI result contains exactly the expected number of days.
+     * If days are missing, they will be added by fillMissingSlots.
+     * If extra days exist (beyond expected), they are removed.
+     */
+    private void enforceDayCount(AiItineraryResult aiResult, int expectedDays) {
+        if (aiResult.getItinerary() == null) return;
+
+        Map<String, Map<String, List<AiItineraryResult.AiPlace>>> itinerary = aiResult.getItinerary();
+
+        // Remove any days beyond expected range
+        itinerary.keySet().removeIf(dayKey -> !isValidDayKey(dayKey, expectedDays));
+
+        // Log if day count doesn't match
+        if (itinerary.size() != expectedDays) {
+            log.warn("AI returned {} valid days after validation, expected {}", itinerary.size(), expectedDays);
+        }
+    }
+
+    private boolean isValidDayKey(String dayKey, int expectedDays) {
+        if (dayKey == null) return false;
+        String trimmed = dayKey.trim();
+        if (!trimmed.matches("(?i)day\\s*\\d+")) return false;
+        String digits = trimmed.replaceAll("\\D", "");
+        try {
+            int n = Integer.parseInt(digits);
+            return n >= 1 && n <= expectedDays;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    // ---------------------------------------------------------
+    //      CONVERSION: AiItineraryResult -> TourResponse
+    // ---------------------------------------------------------
+    private TourResponse toTourResponse(String city, int days, List<String> interests, AiItineraryResult ai) {
+        Map<String, Map<String, List<TourResponse.Place>>> itinerary = new HashMap<>();
+
+        List<TourResponse.Place> allPlaces = new ArrayList<>();
+        Map<String, Integer> coordinateCounts = new HashMap<>();
+
+        for (var dayEntry : ai.getItinerary().entrySet()) {
+            Map<String, List<TourResponse.Place>> day = new HashMap<>();
+            for (var slotEntry : dayEntry.getValue().entrySet()) {
+                List<TourResponse.Place> places = slotEntry.getValue().stream()
+                        .map(this::toPlace)
+                        .peek(p -> allPlaces.add(p))
+                        .toList();
+                day.put(slotEntry.getKey(), places);
+            }
+            itinerary.put(dayEntry.getKey(), day);
+        }
+
+        for (TourResponse.Place place : allPlaces) {
+            if (place.getLat() != 0.0 || place.getLng() != 0.0) {
+                String coordKey = String.format("%.6f,%.6f", place.getLat(), place.getLng());
+                coordinateCounts.merge(coordKey, 1, Integer::sum);
             }
         }
 
-        throw new Exception("Failed after retries");
-    }
+        Set<String> duplicateCoords = coordinateCounts.entrySet().stream()
+                .filter(e -> e.getValue() > 1)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
 
-    private Mono<String> handleResponse(ClientResponse response) {
-        if (response.statusCode().is2xxSuccessful()) {
-            return response.bodyToMono(String.class);
+        for (TourResponse.Place place : allPlaces) {
+            if (place.getLat() != 0.0 || place.getLng() != 0.0) {
+                String coordKey = String.format("%.6f,%.6f", place.getLat(), place.getLng());
+                boolean isDuplicate = duplicateCoords.contains(coordKey);
+                place.setCoordinatesVerified(!isDuplicate);
+                if (isDuplicate) {
+                    place.setMapsUrl(null);
+                }
+            } else {
+                place.setCoordinatesVerified(false);
+                place.setMapsUrl(null);
+            }
         }
-        return response.createException().flatMap(Mono::error);
+
+        return new TourResponse(city, days, interests, itinerary,
+                ai.getRestaurantSuggestions(), ai.getTransportSuggestions(),
+                ai.getTravelTips(), ai.getSafetyTips());
+    }
+
+    private TourResponse.Place toPlace(AiItineraryResult.AiPlace aiPlace) {
+        TourResponse.Place place = new TourResponse.Place(
+                aiPlace.getName(), aiPlace.getDescription(), aiPlace.getLat(), aiPlace.getLng());
+        place.setCoordinatesVerified(aiPlace.isCoordinatesVerified());
+        String mapsUrl = mapLinkService.directionsUrl(aiPlace.getLat(), aiPlace.getLng());
+        place.setMapsUrl(mapsUrl);
+        return place;
     }
 
     // ---------------------------------------------------------
-    //            EXTRACT CONTENT FROM ANY MODEL FORMAT
+    //            FIX MISSING VALUES (kept from original)
     // ---------------------------------------------------------
-    private String extractContent(JsonNode root) {
-
-        JsonNode choice = root.path("choices").get(0);
-
-        if (choice.has("message") && choice.get("message").has("content"))
-            return choice.get("message").get("content").asText();
-
-        if (choice.has("text"))
-            return choice.get("text").asText();
-
-        if (choice.has("delta") && choice.get("delta").has("content"))
-            return choice.get("delta").get("content").asText();
-
-        return "";
-    }
-
-    // ---------------------------------------------------------
-    //              FIX MISSING VALUES
-    // ---------------------------------------------------------
-    private void fillMissing(int days,
-                             Map<String, Map<String, List<TourResponse.Place>>> map) {
+    private void fillMissingSlots(int days, AiItineraryResult ai) {
+        Map<String, Map<String, List<AiItineraryResult.AiPlace>>> map = ai.getItinerary();
 
         for (int i = 1; i <= days; i++) {
-
             String key = "Day " + i;
             map.putIfAbsent(key, new HashMap<>());
-
-            Map<String, List<TourResponse.Place>> day = map.get(key);
+            Map<String, List<AiItineraryResult.AiPlace>> day = map.get(key);
 
             ensureSlot(day, "morning");
             ensureSlot(day, "afternoon");
@@ -169,31 +372,11 @@ private String promptTemplate;
         }
     }
 
-    private void ensureSlot(Map<String, List<TourResponse.Place>> day, String slot) {
-        if (!day.containsKey(slot)) {
-            day.put(slot, List.of(
-                    new TourResponse.Place("No plan", "Unavailable", 0, 0)
-            ));
+    private void ensureSlot(Map<String, List<AiItineraryResult.AiPlace>> day, String slot) {
+        if (!day.containsKey(slot) || day.get(slot) == null || day.get(slot).isEmpty()) {
+            // Don't add placeholder places with (0,0) coordinates.
+            // The frontend handles empty slots gracefully.
+            day.put(slot, List.of());
         }
     }
-
-    // ---------------------------------------------------------
-    //            FALLBACK (SAFE EMPTY STRUCTURE)
-    // ---------------------------------------------------------
-    private Map<String, Map<String, List<TourResponse.Place>>> fallback(int days) {
-
-        Map<String, Map<String, List<TourResponse.Place>>> map = new HashMap<>();
-
-        for (int i = 1; i <= days; i++) {
-
-            Map<String, List<TourResponse.Place>> day = new HashMap<>();
-
-            day.put("morning", List.of(new TourResponse.Place("No data", "Error", 0, 0)));
-            day.put("afternoon", List.of(new TourResponse.Place("No data", "Error", 0, 0)));
-            day.put("evening", List.of(new TourResponse.Place("No data", "Error", 0, 0)));
-
-            map.put("Day " + i, day);
-        }
-        return map;
-    }
-} 
+}

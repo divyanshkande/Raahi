@@ -9,19 +9,19 @@ import org.springframework.core.env.MapPropertySource;
 
 import java.util.HashMap;
 import java.util.Map;
+
 public class DotenvEnvironmentPostProcessor implements EnvironmentPostProcessor {
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
         Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
 
-        Map<String, Object> envProps = new HashMap<>();
+Map<String, Object> envProps = new HashMap<>();
         dotenv.entries().forEach(entry -> envProps.put(entry.getKey(), entry.getValue()));
 
-       
         if (dotenv.get("OPENROUTER_API_KEY") != null) {
             envProps.put("openrouter.api.key", dotenv.get("OPENROUTER_API_KEY"));
         }
-         if (dotenv.get("DB_USERNAME") != null) {
+        if (dotenv.get("DB_USERNAME") != null) {
             envProps.put("spring.datasource.username", dotenv.get("DB_USERNAME"));
         }
         if (dotenv.get("DB_PASSWORD") != null) {
@@ -34,11 +34,8 @@ public class DotenvEnvironmentPostProcessor implements EnvironmentPostProcessor 
             envProps.put("openrouter.model.name", dotenv.get("OPENROUTER_MODEL_NAME"));
         }
         if (dotenv.get("OPENROUTER_PROMPT") != null) {
-    envProps.put("openrouter.prompt", dotenv.get("OPENROUTER_PROMPT"));
-}
-
-        
-        
+            envProps.put("openrouter.prompt", dotenv.get("OPENROUTER_PROMPT"));
+        }
 
         environment.getPropertySources().addFirst(new MapPropertySource("dotenv", envProps));
     }

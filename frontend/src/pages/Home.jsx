@@ -68,8 +68,7 @@ export default function Home() {
           >
             <a
               href="#auth"
-              className="px-12 py-5 bg-white text-indigo-600 font-bold text-xl 
-                         rounded-xl hover:bg-indigo-50 transition shadow-xl hover:shadow-2xl"
+              className="px-12 py-5 bg-white text-indigo-600 font-bold text-xl rounded-xl hover:bg-indigo-50 transition shadow-xl hover:shadow-2xl"
             >
               Sign In or Register to Start
             </a>
